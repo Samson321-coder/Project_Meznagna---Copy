@@ -74,7 +74,7 @@ The included `Dockerfile` matches [Hugging Face Docker Spaces](https://huggingfa
 - **/start**: Access the main menu.
 - **🎫 ቲኬት ግዛ**: View active lotteries and open ticket selection.
 - **📂 የእኔ ቲኬቶች**: View your confirmed tickets.
-- **👤 የኔ መረጃ**: View/update bank details (with `/setbank`).
+- **👤 የኔ መረጃ**: View/update bank details and phone number (with `/setbank Full_Name BankAccount PhoneNumber`).
 
 ### For Admins
 - **/admin_help**: Show admin command examples.

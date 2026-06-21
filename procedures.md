@@ -12,7 +12,7 @@ This guide explains how to manage and use the simplified version of the Dilla Mo
     *(Format: `/add_lottery [Name] [Description] [TicketCount]`)*
 
 *   **Step 2: Verify Transactions**
-    When a user uploads a screenshot, you will see the **Lottery Name**, **Ticket Number**, and **TX ID**.
+    When a user uploads a screenshot, you will see the **Lottery Name**, **Ticket Number**, **Phone Number**, and **TX ID**.
     - To **Confirm**: Click the `/approve_ID` link in the message.
     - **Effect**: This marks the ticket as **Confirmed** and notifies the user.
 
@@ -38,6 +38,13 @@ This guide explains how to manage and use the simplified version of the Dilla Mo
 
 *   **Step 4: Confirmation**
     Once the admin checks your screenshot, you will receive a confirmation message with your fixed ticket number.
+
+*   **Step 5: Provide Details for Prizes**
+    To ensure you can receive your prize if you win, provide your full name, bank account, and phone number using the `/setbank` command:
+    ```text
+    /setbank Full_Name BankAccount PhoneNumber
+    ```
+    *(Example: `/setbank Abebe_Kebede_Ayele 1000250138533 0911111111`)*
 
 ---
 

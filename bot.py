@@ -86,7 +86,7 @@ def run_flask():
 # Globals used by the Flask /webhook endpoint (set at startup in webhook mode)
 # ---------------------------------------------------------------------------
 _g_application = None
-_g_loop: asyncio.AbstractEventLoop | None = None
+_g_loop = None
 
 
 @web_app.route(WEBHOOK_PATH, methods=['POST'])
@@ -421,6 +421,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             #  f"ሎተሪ: {pending_ticket.lottery.name}\n"
                              f"መዝናኛ: {pending_ticket.lottery.name}\n"
                              f"ቁጥር: {pending_ticket.ticket_number}\n"
+                             f"ስልክ: {pending_ticket.user.phone or 'አልገባም'}\n"
                              f"TX ID: {tx.id}\n\n"
                              f"ለማረጋገጥ: /approve_{tx.id}")
                 )
@@ -539,7 +540,7 @@ async def perform_draw(lottery, context, session):
         
         if ADMIN_ID:
             try:
-                admin_msg = f"🏆 አሸናፊ: {winner_name} (ቲኬት {winner_ticket.ticket_number})\nባንክ ዝርዝር:\nባንክ፡ {winner_user.bank_name or 'አልገባም'}\nሂሳብ፡ {winner_user.bank_account_number or 'አልገባም'}"
+                admin_msg = f"🏆 አሸናፊ: {winner_name} (ቲኬት {winner_ticket.ticket_number})\nባንክ ዝርዝር:\nባንክ፡ {winner_user.bank_name or 'አልገባም'}\nሂሳብ፡ {winner_user.bank_account_number or 'አልገባም'}\nስልክ፡ {winner_user.phone or 'አልገባም'}"
                 await context.bot.send_message(chat_id=ADMIN_ID, text=admin_msg)
             except Exception as e:
                 logging.error(f"Failed to send admin bank info: {e}")
@@ -565,13 +566,14 @@ async def perform_draw(lottery, context, session):
 async def setbank(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     try:
-        parts = update.message.text.split(maxsplit=2)
-        if len(parts) < 3:
+        parts = update.message.text.split(maxsplit=3)
+        if len(parts) < 4:
             await update.message.reply_text(STRINGS['bank_set_format'])
             return
 
         bank_name = parts[1]
         account_number = parts[2]
+        phone_number = parts[3]
 
         session = get_session()
         try:
@@ -579,6 +581,7 @@ async def setbank(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if user:
                 user.bank_name = bank_name
                 user.bank_account_number = account_number
+                user.phone = phone_number
                 session.commit()
                 await update.message.reply_text(STRINGS['bank_set_success'])
         finally:
@@ -637,7 +640,7 @@ async def add_lottery(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         name=new_lot.name, desc=new_lot.description, price=new_lot.ticket_price,
                         sold=0, total=new_lot.total_tickets
                     )
-                    announcement_text = f"🆕 አዲስ መዝናኛ ተጀምሯል! \n\n@cheweta_meznagna_bot \nወይም \nt.me/akeray_tekeray_bot \nTelegram Bot ላይ ይዝናኑ | ያሸንፉ | ይሸለሙ\n\n{text}"
+                    announcement_text = f"🆕 አዲስ መዝናኛ ተጀምሯል! \n\n@cheweta_meznagna_bot \nTelegram Bot ላይ ይዝናኑ | ያሸንፉ | ይሸለሙ\n\n{text}"
                     if img_id:
                         await context.bot.send_photo(chat_id=TELEGRAM_CHANNEL_ID.strip(), photo=img_id, caption=announcement_text)
                     else:
@@ -760,7 +763,7 @@ if __name__ == '__main__':
                     else:
                         await update.message.reply_text(
                             STRINGS['profile_text_has_bank'].format(
-                                bank_name=user.bank_name, account_number=user.bank_account_number
+                                bank_name=user.bank_name, account_number=user.bank_account_number, phone_number=user.phone or "አልገባም"
                             )
                         )
             finally:
