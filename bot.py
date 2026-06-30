@@ -47,6 +47,20 @@ PORT = int(os.getenv("PORT", 7860))
 SESSION_TIMEOUT_MINUTES = int(os.getenv("SESSION_TIMEOUT_MINUTES", "15"))
 PENDING_RESERVATION_MINUTES = int(os.getenv("PENDING_RESERVATION_MINUTES", "360"))
 
+# ---------------------------------------------------------------------------
+# Proxy support — bypasses Hugging Face regional blocks on api.telegram.org
+# Set HTTPS_PROXY (preferred) or HTTP_PROXY in your HF Space secrets, e.g.:
+#   HTTPS_PROXY=http://user:pass@proxy-host:port
+# Leave unset to run without a proxy (works on environments that allow direct
+# outbound connections to Telegram).
+# ---------------------------------------------------------------------------
+HTTPS_PROXY = (
+    os.getenv("HTTPS_PROXY", "")
+    or os.getenv("https_proxy", "")
+    or os.getenv("HTTP_PROXY", "")
+    or os.getenv("http_proxy", "")
+).strip()
+
 # --- Run mode: set BOT_MODE=webhook to use webhook instead of polling ---
 # BOT_MODE   : "polling" (default) | "webhook"
 # WEBHOOK_URL: public HTTPS root of your space, e.g. https://username-spacename.hf.space
@@ -706,10 +720,31 @@ if __name__ == '__main__':
         )
         sys.exit(1)
 
+    # --- Connectivity check: verify Telegram API is reachable before starting ---
+    logging.info("Checking connectivity to api.telegram.org (proxy=%s) ...", HTTPS_PROXY or "none")
+    try:
+        import httpx
+        _proxy_arg = {"proxy": HTTPS_PROXY} if HTTPS_PROXY else {}
+        with httpx.Client(**_proxy_arg, timeout=20) as _client:
+            _client.get("https://api.telegram.org")
+        logging.info("Connectivity check PASSED: api.telegram.org is reachable.")
+    except Exception as _conn_err:
+        logging.error("Connectivity check FAILED: cannot reach api.telegram.org: %s", _conn_err)
+        logging.error("The bot will still attempt to start, but polling/webhook may fail.")
+
     init_db()
 
     # Create a request object with customized timeouts to handle network lag and large files.
-    ptb_request = HTTPXRequest(connect_timeout=60, read_timeout=60, write_timeout=60, pool_timeout=60)
+    # If HTTPS_PROXY is set, route all Telegram API traffic through it to bypass
+    # regional blocks (e.g. Hugging Face Spaces blocking api.telegram.org).
+    # PTB 21.x renamed the parameter from 'proxy_url' to 'proxy'.
+    ptb_request_kwargs = dict(connect_timeout=60, read_timeout=60, write_timeout=60, pool_timeout=60)
+    if HTTPS_PROXY:
+        ptb_request_kwargs["proxy"] = HTTPS_PROXY
+        logging.info("Using proxy for Telegram API calls: %s", HTTPS_PROXY)
+    else:
+        logging.info("No proxy configured; connecting to Telegram API directly.")
+    ptb_request = HTTPXRequest(**ptb_request_kwargs)
     application = ApplicationBuilder().token(TOKEN).request(ptb_request).build()
     application.add_handler(TypeHandler(Update, session_gate), group=_HANDLER_GROUP_SESSION_GATE)
     # See _START_CMD_RE: CommandHandler('start') is unreliable; MessageHandler must be group 1, not 0.
@@ -837,4 +872,8 @@ if __name__ == '__main__':
         logging.info("Bot is starting in POLLING mode...")
         # Increase polling timeout and bootstrap retries.
         # drop_pending_updates=True clears old messages to avoid a backlog on restart.
-        application.run_polling(timeout=30, bootstrap_retries=5, drop_pending_updates=True)
+        try:
+            application.run_polling(timeout=30, bootstrap_retries=5, drop_pending_updates=True)
+        except Exception as _poll_err:
+            logging.error("run_polling crashed with: %s", _poll_err, exc_info=True)
+            raise
